@@ -1,1 +1,1 @@
-{"root":["./src/server.ts"],"version":"5.8.3"}
+{"root":["./src/server.ts","./src/controllers/repos.controller.ts","./src/routes/repos.router.ts"],"version":"5.8.3"}
