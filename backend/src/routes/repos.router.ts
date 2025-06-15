@@ -5,7 +5,7 @@ import { getRepos } from "../controllers/repos.controller";
 
 const router = Router();
 
-router.get("/", getRepos);
+router.post("/", getRepos);
 
 
 export default router;
