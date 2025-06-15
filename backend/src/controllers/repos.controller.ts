@@ -18,6 +18,12 @@ export const getRepos = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    const pageNum = Math.max(parseInt(page as string) || 1, 1);
+    const perPageNum = Math.min(
+      Math.max(parseInt(per_page as string) || 10, 1),
+      100
+    );
+
     let queryParts: string[] = [];
 
     if (topic && typeof topic === "string") {
@@ -31,7 +37,7 @@ export const getRepos = async (req: Request, res: Response): Promise<void> => {
     }
 
     const q = queryParts.join("+");
-    
+
     // Add more detailed logging
     console.log("GitHub API Query:", q);
     console.log("GitHub Token present:", !!process.env.GITHUB_TOKEN);
@@ -47,26 +53,45 @@ export const getRepos = async (req: Request, res: Response): Promise<void> => {
           q,
           sort: "stars",
           order: "desc", // Add explicit order
-          per_page: Math.min(Number(per_page) || 10, 100), // Ensure valid range
-          page: Math.max(Number(page) || 1, 1), // Ensure valid page number
+          per_page: perPageNum, // Ensure valid range
+          page: pageNum, // Ensure valid page number
         },
       }
     );
 
+    const totalResults = response.data.total_count;
+    const totalPages = Math.ceil(totalResults / perPageNum);
+    const hasNextPage = pageNum < totalPages;
+    const hasPrevPage = pageNum > 1;
+
     res.status(200).json({
-      total: response.data.total_count,
-      repos: response.data.items,
-      page: Number(page) || 1,
-      per_page: Math.min(Number(per_page) || 10, 100),
+      success: true,
+      data: {
+        repos: response.data.items,
+        pagination: {
+          currentPage: pageNum,
+          per_page: perPageNum, 
+          total_results: totalResults,
+          total_pages: totalPages,
+          has_next_page: hasNextPage,
+          has_prev_page: hasPrevPage,
+          next_page: hasNextPage ? pageNum + 1 : null,
+          prevPage: hasPrevPage ? pageNum - 1 : null,
+        },
+      },
     });
   } catch (error: any) {
     console.error("Error when getting repos:", error);
-    
+
     // Handle different types of errors
     if (error.response) {
       // GitHub API returned an error
-      console.error("GitHub API Error:", error.response.status, error.response.data);
-      
+      console.error(
+        "GitHub API Error:",
+        error.response.status,
+        error.response.data
+      );
+
       if (error.response.status === 401) {
         res.status(500).json({ error: "GitHub authentication failed" });
       } else if (error.response.status === 403) {
@@ -74,15 +99,17 @@ export const getRepos = async (req: Request, res: Response): Promise<void> => {
       } else if (error.response.status === 422) {
         res.status(400).json({ error: "Invalid search query" });
       } else {
-        res.status(500).json({ 
+        res.status(500).json({
           error: "GitHub API error",
-          details: error.response.data?.message || "Unknown error"
+          details: error.response.data?.message || "Unknown error",
         });
       }
     } else if (error.request) {
       // Network error
       console.error("Network Error:", error.message);
-      res.status(500).json({ error: "Network error - unable to reach GitHub API" });
+      res
+        .status(500)
+        .json({ error: "Network error - unable to reach GitHub API" });
     } else {
       // Other error
       console.error("Unexpected Error:", error.message);
